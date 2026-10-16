@@ -28,11 +28,19 @@ export const observeUsage = (contentType: string, anthropic: boolean) => {
     if (result._tag === "None") return;
     const frame = result.value;
     if (frame.error || frame.type === "error" || frame.type === "response.failed") invalid = true;
-    if (["message_stop", "response.completed", "response.incomplete"].includes(String(frame.type))) complete = true;
-    for (const [key, value] of Object.entries(frame.usage ?? frame.message?.usage ?? frame.response?.usage ?? {}))
-      if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) values[key] = value;
+    if (["message_stop", "response.completed", "response.incomplete"].includes(String(frame.type)))
+      complete = true;
+    for (const [key, value] of Object.entries(
+      frame.usage ?? frame.message?.usage ?? frame.response?.usage ?? {},
+    ))
+      if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
+        values[key] = value;
   };
-  const parser = createParser({ onEvent: (event) => parse(event.data), onError: (e) => void (e.type === "max-buffer-size-exceeded" && (invalid = true)), maxBufferSize: LIMIT });
+  const parser = createParser({
+    onEvent: (event) => parse(event.data),
+    onError: (e) => void (e.type === "max-buffer-size-exceeded" && (invalid = true)),
+    maxBufferSize: LIMIT,
+  });
   const feed = (text: string) => {
     if (streaming) parser.feed(text);
     else buffer.length + text.length <= LIMIT ? (buffer += text) : (invalid = true);
@@ -47,7 +55,12 @@ export const observeUsage = (contentType: string, anthropic: boolean) => {
       if (invalid || !complete) return null;
       if (!anthropic && values.total_tokens !== undefined) return values.total_tokens;
       if (input === undefined || output === undefined) return null;
-      const total = input + output + (anthropic ? (values.cache_read_input_tokens ?? 0) + (values.cache_creation_input_tokens ?? 0) : 0);
+      const total =
+        input +
+        output +
+        (anthropic
+          ? (values.cache_read_input_tokens ?? 0) + (values.cache_creation_input_tokens ?? 0)
+          : 0);
       return Number.isSafeInteger(total) ? total : null;
     },
   };
