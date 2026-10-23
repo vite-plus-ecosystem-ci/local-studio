@@ -5,18 +5,9 @@ import type { LocalTailnet } from "../../../packages/contracts/src/localStudio.t
 import { type Config, decodeJson, exec, fail, fetchJson, lastLine } from "./core.ts";
 import { normUrl } from "./graph.ts";
 
-const Peer = Schema.Struct({
-  HostName: Schema.String,
-  OS: Schema.String,
-  Online: Schema.Boolean,
-  TailscaleIPs: Schema.Array(Schema.String),
-});
-const Status = Schema.Struct({
-  Peer: Schema.optionalKey(Schema.NullOr(Schema.Record(Schema.String, Peer))),
-});
-const decodeHealth = Schema.decodeUnknownOption(
-  Schema.Struct({ id: Schema.String, name: Schema.String }),
-);
+const Peer = Schema.Struct({ HostName: Schema.String, OS: Schema.String, Online: Schema.Boolean, TailscaleIPs: Schema.Array(Schema.String) });
+const Status = Schema.Struct({ Peer: Schema.optionalKey(Schema.NullOr(Schema.Record(Schema.String, Peer))) });
+const decodeHealth = Schema.decodeUnknownOption(Schema.Struct({ id: Schema.String, name: Schema.String }));
 
 export const scanTailnet = (linked: Set<string>): Effect.Effect<LocalTailnet> =>
   Effect.gen(function* () {
@@ -35,24 +26,15 @@ export const scanTailnet = (linked: Set<string>): Effect.Effect<LocalTailnet> =>
           const ip = p.TailscaleIPs.find((a) => !a.includes(":")) ?? p.TailscaleIPs[0] ?? "";
           const url = `http://${ip}:18091`;
           const res = yield* Effect.option(fetchJson(`${url}/api/health`, 1_500));
-          const health =
-            res._tag === "Some" && res.value.status === 200 ? decodeHealth(res.value.body) : null;
-          return {
-            name: p.HostName,
-            ip,
-            os: p.OS,
-            controller: health?._tag === "Some" ? { ...health.value, url } : null,
-            linked: linked.has(normUrl(url)),
-          };
+          const health = res._tag === "Some" && res.value.status === 200 ? decodeHealth(res.value.body) : null;
+          return { name: p.HostName, ip, os: p.OS, controller: health?._tag === "Some" ? { ...health.value, url } : null, linked: linked.has(normUrl(url)) };
         }),
       { concurrency: 16 },
     );
     return { available: true, devices: devices.sort((a, b) => a.name.localeCompare(b.name)) };
   });
 
-const RELEASE =
-  process.env.LOCAL_STUDIO_CONTROLLER_RELEASE ??
-  "https://github.com/sybil-solutions/local-studio/releases/latest/download";
+const RELEASE = process.env.LOCAL_STUDIO_CONTROLLER_RELEASE ?? "https://github.com/sybil-solutions/local-studio/releases/latest/download";
 const quote = (v: string) => `'${v.replaceAll("'", `'\\''`)}'`;
 const SCRIPT = `set -e
 case "$(uname -s)-$(uname -m)" in Linux-x86_64) T=linux-x64;; Linux-aarch64|Linux-arm64) T=linux-arm64;; Darwin-arm64) T=darwin-arm64;; Darwin-x86_64) T=darwin-x64;; *) echo "unsupported $(uname -sm)" >&2; exit 2;; esac
@@ -75,50 +57,20 @@ else
   launchctl bootstrap "gui/$(id -u)" "$P" || launchctl bootstrap "user/$(id -u)" "$P"
 fi`;
 
-export const deployController = (
-  config: Config,
-  req: { ip: string; name: string; user?: string },
-) =>
+export const deployController = (config: Config, req: { ip: string; name: string; user?: string }) =>
   Effect.gen(function* () {
-    if (!/^[\d.]+$/.test(req.ip) || !/^[\w.-]*$/.test(req.user ?? ""))
-      return yield* fail(400, "BAD_TARGET", "deploy needs a tailnet IPv4 and a plain user name");
+    if (!/^[\d.]+$/.test(req.ip) || !/^[\w.-]*$/.test(req.user ?? "")) return yield* fail(400, "BAD_TARGET", "deploy needs a tailnet IPv4 and a plain user name");
     const url = `http://${req.ip}:18091`;
     const name = req.name.replace(/[^\w.-]/g, "-") || req.ip;
-    const cfg = JSON.stringify({
-      id: `${name}-${randomBytes(3).toString("hex")}`,
-      name,
-      url,
-      fleetKey: config.fleetKey,
-      peers: [],
-    });
-    const env = Object.entries({ RELEASE, CFG: cfg, HOST: req.ip })
-      .map(([k, v]) => `${k}=${quote(v)}`)
-      .join("\n");
+    const cfg = JSON.stringify({ id: `${name}-${randomBytes(3).toString("hex")}`, name, url, fleetKey: config.fleetKey, peers: [] });
+    const env = Object.entries({ RELEASE, CFG: cfg, HOST: req.ip }).map(([k, v]) => `${k}=${quote(v)}`).join("\n");
     const target = req.user ? `${req.user}@${req.ip}` : req.ip;
-    const r = yield* exec(
-      [
-        "ssh",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "ConnectTimeout=10",
-        "-o",
-        "StrictHostKeyChecking=accept-new",
-        target,
-        "sh -s",
-      ],
-      180_000,
-      { stdin: `${env}\n${SCRIPT}\n` },
-    );
+    const r = yield* exec(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "StrictHostKeyChecking=accept-new", target, "sh -s"], 180_000, { stdin: `${env}\n${SCRIPT}\n` });
     if (r.code !== 0) return yield* fail(502, "DEPLOY_FAILED", `${target}: ${lastLine(r)}`);
     for (let i = 0; i < 20; i++) {
       const h = yield* Effect.option(fetchJson(`${url}/api/health`, 1_500));
       if (h._tag === "Some" && h.value.status === 200) return url;
       yield* Effect.sleep("1 second");
     }
-    return yield* fail(
-      504,
-      "DEPLOY_TIMEOUT",
-      `installed on ${target} but nothing answers at ${url}`,
-    );
+    return yield* fail(504, "DEPLOY_TIMEOUT", `installed on ${target} but nothing answers at ${url}`);
   });
