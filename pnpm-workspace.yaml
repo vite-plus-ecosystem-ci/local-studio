@@ -49,9 +49,10 @@ catalog:
   lightningcss: 1.33.0
   tailwindcss: 4.3.3
   typescript: 7.0.2
-  vite: npm:@voidzero-dev/vite-plus-core@1.0.0
-  vite-plus: 1.0.0
+  vite: npm:@voidzero-dev/vite-plus-core@0.0.0-commit.b310e71f11353a85781d2d0e0e0bfe149e0f55a2
+  vite-plus: 0.0.0-commit.b310e71f11353a85781d2d0e0e0bfe149e0f55a2
   yaml: ^2.9.0
+  vitest: 5.1.0
 
 minimumReleaseAgeExclude:
   # ecosystem-ci smoke test: preview builds and freshly pinned toolchain packages
@@ -246,8 +247,9 @@ overrides:
   node-abi: 4.33.0
   lightningcss: "catalog:"
   tailwindcss: "catalog:"
-  vite: "catalog:"
   yaml: "catalog:"
+  vite@*: "catalog:"
+  vitest@*: "catalog:"
 
 packageExtensions:
   "@clerk/expo@*":
@@ -293,8 +295,10 @@ patchedDependencies:
 peerDependencyRules:
   allowAny:
     - vite
+    - vitest
   allowedVersions:
     vite: "*"
+    vitest: "*"
 
 supportedArchitectures:
   cpu: [current, x64]
