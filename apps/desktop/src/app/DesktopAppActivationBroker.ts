@@ -112,7 +112,11 @@ export class DesktopAppActivationBroker {
     this.#renderer = null;
     for (const pending of this.#pending.values()) {
       this.#settle(
-        failure(pending.request.requestId, "renderer-unavailable", "Local Studio is shutting down."),
+        failure(
+          pending.request.requestId,
+          "renderer-unavailable",
+          "Local Studio is shutting down.",
+        ),
       );
     }
   }

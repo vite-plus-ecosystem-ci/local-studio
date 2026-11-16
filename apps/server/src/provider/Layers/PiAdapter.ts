@@ -257,7 +257,7 @@ export const makePiAdapter = Effect.fn("makePiAdapter")(function* (
       if (method === "select" && choices.join("|") === "Approve|Deny") {
         return yield* (
           ctx.rpc?.write({ type: "extension_ui_response", id: uiId, value: "Approve" }) ??
-            Effect.void
+          Effect.void
         );
       }
       const requestId = ApprovalRequestId.make(yield* uuid);

@@ -2437,53 +2437,55 @@ export const make = Effect.gen(function* () {
 
         yield* ensureExistingWorktreeUpstream(worktreePath);
 
-        const refreshed = yield* gitCore
-          // The pull request's own ref, because it is the only thing that certainly names its
-          // head. The branch's upstream does not: configuring it is best-effort, so a branch cut
-          // from `origin/main` whose head branch has since been deleted still resolves — and
-          // following it would move the checkout onto main and call that the pull request.
-          .fetchPullRequestHeadCommit({ cwd: worktreePath, prNumber: pullRequest.number })
-          .pipe(
-            // A host that publishes no `refs/pull/<n>/head` leaves the remote-tracking branch,
-            // taken only where it is the head branch's own rather than whatever the checkout
-            // happened to be cut from.
-            Effect.catch(() =>
-              Effect.gen(function* () {
-                const details = yield* gitCore.statusDetails(worktreePath);
-                if (
-                  details.upstreamRef === null ||
-                  !details.upstreamRef.endsWith(`/${pullRequest.headBranch}`)
-                ) {
-                  return yield* new GitManagerError({
-                    operation: "preparePullRequestThread",
+        const refreshed = yield* (
+          gitCore
+            // The pull request's own ref, because it is the only thing that certainly names its
+            // head. The branch's upstream does not: configuring it is best-effort, so a branch cut
+            // from `origin/main` whose head branch has since been deleted still resolves — and
+            // following it would move the checkout onto main and call that the pull request.
+            .fetchPullRequestHeadCommit({ cwd: worktreePath, prNumber: pullRequest.number })
+            .pipe(
+              // A host that publishes no `refs/pull/<n>/head` leaves the remote-tracking branch,
+              // taken only where it is the head branch's own rather than whatever the checkout
+              // happened to be cut from.
+              Effect.catch(() =>
+                Effect.gen(function* () {
+                  const details = yield* gitCore.statusDetails(worktreePath);
+                  if (
+                    details.upstreamRef === null ||
+                    !details.upstreamRef.endsWith(`/${pullRequest.headBranch}`)
+                  ) {
+                    return yield* new GitManagerError({
+                      operation: "preparePullRequestThread",
+                      cwd: worktreePath,
+                      detail: "The pull request head could not be resolved for this checkout.",
+                    });
+                  }
+                  return yield* gitCore.resolveCommit({
                     cwd: worktreePath,
-                    detail: "The pull request head could not be resolved for this checkout.",
+                    revision: details.upstreamRef,
                   });
-                }
-                return yield* gitCore.resolveCommit({
+                }),
+              ),
+              Effect.flatMap((target) =>
+                gitCore.refreshCheckedOutBranch({
                   cwd: worktreePath,
-                  revision: details.upstreamRef,
-                });
-              }),
-            ),
-            Effect.flatMap((target) =>
-              gitCore.refreshCheckedOutBranch({
-                cwd: worktreePath,
-                targetCommit: target.commitSha,
-                resetWhenHeadCommit: upstreamCommitBeforeFetch,
-              }),
-            ),
-            Effect.catch((error) =>
-              Effect.logWarning(
-                "GitManager.preparePullRequestThread reused worktree refresh failed",
-                {
-                  worktreePath,
-                  localBranch: localPullRequestBranch,
-                  cause: error,
-                },
-              ).pipe(Effect.as({ moved: false, onTarget: false })),
-            ),
-          );
+                  targetCommit: target.commitSha,
+                  resetWhenHeadCommit: upstreamCommitBeforeFetch,
+                }),
+              ),
+              Effect.catch((error) =>
+                Effect.logWarning(
+                  "GitManager.preparePullRequestThread reused worktree refresh failed",
+                  {
+                    worktreePath,
+                    localBranch: localPullRequestBranch,
+                    cause: error,
+                  },
+                ).pipe(Effect.as({ moved: false, onTarget: false })),
+              ),
+            )
+        );
 
         // Only when the checkout actually moved: another thread may be running in this worktree,
         // and re-running the setup script under it buys nothing when the code did not change.
