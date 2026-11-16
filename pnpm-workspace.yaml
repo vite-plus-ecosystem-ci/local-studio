@@ -49,9 +49,10 @@ catalog:
   lightningcss: 1.33.0
   tailwindcss: 4.3.3
   typescript: 7.0.2
-  vite: npm:@voidzero-dev/vite-plus-core@1.0.0
-  vite-plus: 1.0.0
+  vite: npm:@voidzero-dev/vite-plus-core@0.0.0-commit.309b96aaf065d95452ca218076c666671cf36440
+  vite-plus: 0.0.0-commit.309b96aaf065d95452ca218076c666671cf36440
   yaml: ^2.9.0
+  vitest: 5.1.0
 
 minimumReleaseAgeExclude:
   # ecosystem-ci smoke test: preview builds and freshly pinned toolchain packages
@@ -167,6 +168,15 @@ minimumReleaseAgeExclude:
   - expo-application@58.0.3
   - expo-eas-client@58.0.2
   - expo-image-loader@58.0.3
+  - "@tsrs/darwin-arm64@7.1.0-beta.tsrs2"
+  - "@tsrs/darwin-x64@7.1.0-beta.tsrs2"
+  - "@tsrs/linux-arm64-gnu@7.1.0-beta.tsrs2"
+  - "@tsrs/linux-arm64-musl@7.1.0-beta.tsrs2"
+  - "@tsrs/linux-x64-gnu@7.1.0-beta.tsrs2"
+  - "@tsrs/linux-x64-musl@7.1.0-beta.tsrs2"
+  - "@tsrs/win32-arm64@7.1.0-beta.tsrs2"
+  - "@tsrs/win32-x64@7.1.0-beta.tsrs2"
+  - tsrs@7.1.0-beta.tsrs2
 
 overrides:
   "xml2js": "0.5.0"
@@ -246,8 +256,9 @@ overrides:
   node-abi: 4.33.0
   lightningcss: "catalog:"
   tailwindcss: "catalog:"
-  vite: "catalog:"
   yaml: "catalog:"
+  vite@*: "catalog:"
+  vitest@*: "catalog:"
 
 packageExtensions:
   "@clerk/expo@*":
@@ -293,8 +304,10 @@ patchedDependencies:
 peerDependencyRules:
   allowAny:
     - vite
+    - vitest
   allowedVersions:
     vite: "*"
+    vitest: "*"
 
 supportedArchitectures:
   cpu: [current, x64]
